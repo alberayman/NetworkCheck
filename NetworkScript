@@ -1,0 +1,52 @@
+# Import the BurntToast module
+Import-Module BurntToast
+
+# Function to check the status of an IP address and show a toast notification if it's down
+function Check-IPStatus {
+    param (
+        [string]$ipAddress
+    )
+
+    $logFilePath = Join-Path $PSScriptRoot "IPStatusLog.txt"
+
+    if (-not (Test-Path $logFilePath)) {
+        New-Item -ItemType File -Path $logFilePath | Out-Null
+    }
+
+    $previousStatus = Get-Content -Path $logFilePath -Raw -ErrorAction SilentlyContinue
+
+    $pingResult = Test-Connection -ComputerName $ipAddress -Count 1 -ErrorAction SilentlyContinue
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $status = if ($pingResult -eq $null) { "DOWN" } else { "UP" }
+    $message = "$ipAddress is $status"
+
+    if ($pingResult -eq $null -and $status -ne $previousStatus) {
+        # IP status has changed, update log and show notification
+        Write-Host "$message"
+        $toastParams = @{
+            Text = "$message - $timestamp"
+            Sound = "Alarm2"
+            # Use the default BurntToast logo
+        }
+        New-BurntToastNotification @toastParams
+
+        # Log the status to the file
+        $logEntry = "$timestamp - $message"
+        Add-Content -Path $logFilePath -Value $logEntry
+    } else {
+        Write-Host "$message"
+    }
+}
+
+# Define the IP addresses to monitor
+$ipAddresses = "8.8.8.8", "192.168.1.1", "10.0.0.2"
+
+# Infinite loop to continuously check the IP addresses
+while ($true) {
+    foreach ($ipAddress in $ipAddresses) {
+        Check-IPStatus -ipAddress $ipAddress
+    }
+
+    # Add a delay between checks (adjust as needed)
+    Start-Sleep -Seconds 30
+}
